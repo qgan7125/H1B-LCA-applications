@@ -261,6 +261,13 @@ LCA_total %>% group_by(employer_name) %>%
 LCA_total <- LCA_total %>% 
   mutate(employer_name = tolower(employer_name))
 
+# check job_title
+LCA_total %>% count(job_title, sort = T) %>% print(n = Inf)
+
+# to lowercase
+LCA_total <- LCA_total %>% 
+  mutate(job_title = tolower(job_title))
+
 
 # check the worksite_city
 LCA_total %>%  count(worksite_city, sort = T) %>% print(n = Inf)
@@ -364,5 +371,3 @@ LCA_cleaned <- LCA_total %>%
          submited_month,
          submited_week)
 
-# export cleaned data to csv file
-write.csv(LCA_cleaned, "Data/LCA_cleaned.csv", row.names = FALSE)
