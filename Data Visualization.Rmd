@@ -1,0 +1,260 @@
+---
+title: "Data Visualization"
+author: "Quan Gan, Yuxuan chen"
+date: "11/3/2021"
+output: 
+  html_document:
+    toc: true
+---
+
+# Data Visualization
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+# load libraries
+library(tidyverse)
+```
+```{r}
+# load data in
+LCA_application <- read_csv("Data/LCA_cleaned.csv")
+```
+## Question 1
+
+> Question: What companies have high expectations of international workers arcoss years?
+
+In the data set, the employer_name variable is the name of company. We need to
+figure what companies have more LCA application from 2016 to 2020.
+
+
+```{r}
+# Find the top 10 companies that have most LCA applications.
+LCA_application %>% 
+  select(employer_name) %>% 
+  add_count(employer_name) %>% 
+  arrange(desc(n)) %>% 
+  unique() %>% 
+  top_n(10) %>% 
+  print(n = 10) -> top_10_company
+```
+
+```{r}
+# Count the LCA applications of top 10 companies across years
+LCA_application %>% 
+  filter(employer_name %in% top_10_company$employer_name) %>% 
+  select(employer_name, year) %>% 
+  group_by(year) %>% 
+  add_count(employer_name) %>% 
+  arrange(year, desc(n)) %>% 
+  unique() -> company_application_number
+```
+
+Visualize the top 5 companies across years
+
+```{r}
+company_application_number %>% 
+  group_by(employer_name, year) %>% 
+  ggplot(aes(x = year,
+             y = n,
+             fill = year)) +
+  geom_col(position = "dodge") + 
+  facet_wrap(~employer_name, ncol = 3) +
+  coord_flip() +
+  labs(y = "Number of LCA applications")
+
+```
+
+This plot shows the top 10 companies in total that apply for LCA applications from 2016 to 2020.
+Each subplot shows their applications trends. We could know for Google LLC and cognizant technology solutions us corp,
+they don't have LCA applications in 2016 and 2017. Half of top 10 companies increase their
+LCA applications. In addition, I choose the top 10 companies that have most LCA 
+applications in total rather than choosing each year top 10 companies because some 
+companies might only desire foreign workers in a specific year and analyzing overall top 10 
+companies could illustrate the recruiting trends.
+
+## Question 2
+
+> Question: Would the prevailing wage rate and paid wage rate influence the approval of LCA application?
+
+In LCA, the prevailing wage is defined as "the average wage paid to similarly employed
+workers in the requested occupation in the area of intended employment" from 
+https://www.usavisanow.com/h-1b-visa/h1b-visa-resources/prevailing-wage/.
+
+The paid wage rate is the actually wage paied to the foreign employee. 
+
+
+```{r}
+# count case_status
+LCA_application %>% count(case_status)
+```
+
+In this data set, there are over 300 million records but only 1% applications failed,
+which is extremely unbalanced. In order to explore the correlation among prevailing 
+wage rate, paid wage rate, and the approval of LCA application, we decide to sample
+same amount record from data set.
+
+```{r}
+
+# set seed
+set.seed(1)
+
+# sample records from dataset
+certified <- LCA_application %>% 
+  filter(case_status == "certified") %>% 
+  sample_n(10000)
+
+denied <- LCA_application %>% 
+  filter(case_status == "denied") %>% 
+  sample_n(10000)
+
+
+LCA_sample <- rbind(certified, denied)
+
+# The wage_rate_from_year is the minimum paid wage rate and wage_rate_to_year is the
+# maximum paid wage rate. So, we need to calculate the mean wage rate.
+LCA_sample <- LCA_sample %>% 
+  mutate(mean_wage_rate_year = ifelse(wage_rate_to_year == 0, 
+                                      wage_rate_from_year,
+                                      (wage_rate_from_year + wage_rate_to_year)/2))
+
+LCA_sample <- LCA_sample %>% 
+  mutate(difference_prevailing_wage = mean_wage_rate_year - prevailing_wage_year)
+
+```
+
+
+```{r}
+LCA_sample %>% 
+  group_by(case_status) %>% 
+  ggplot(aes(x = factor(year),
+             y = prevailing_wage_year,
+             fill = case_status)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(0,150000)) +
+  labs(x = "Year",
+       y = "Prevailing wage rate unit year",
+       fill = "Case Status")
+
+```
+
+```{r}
+LCA_sample %>% 
+  group_by(case_status) %>% 
+  ggplot(aes(x = factor(year),
+             y = mean_wage_rate_year,
+             fill = case_status)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(0,150000))+
+  labs(x = "Year",
+       y = "Paid wage rate unit year",
+       fill = "Case Status")
+```
+```{r}
+LCA_sample %>% 
+  group_by(case_status) %>% 
+  ggplot(aes(x = factor(year),
+             y = difference_prevailing_wage,
+             fill = case_status)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(-10000,25000))+
+  labs(x = "Year",
+       y = "Difference of prevailing wage rate and paid wage rate",
+       fill = "Case Status")
+```
+
+The means of prevailing wage rate and paid wage rate of refused LCA applications 
+are lower than the means of certified LCA applications, as seen in the first two box plots. 
+The mean gap between paid and prevailing pay rates is greater than the mean difference 
+between paid and prevailing wage rates.
+The third box plots shows that the applicants receive the denied results because 
+the employers don't pay enough wage rate comparing to the prevailing wage rate.
+In addition, some paid wage rates of denied applications are less than the 
+prevailing wage rate but certified applications always provide wage rate larger 
+than prevailing wage. In the data, there are some extreme high wage rates, which 
+are noise. In order to help the users understand the visualization better, I change 
+the y-axis so the audiences could focus on the mean values.
+
+## Question 3
+
+> Question: What is the trends of data science related jobs?
+
+In this question, we will analyze four popular data science related jobs, machine learning,
+data scientist, data engineer, and data analyst. How would 
+their demand change? How would their wage rate change?
+
+```{r}
+# filter original data set and select data science related jobs.
+ds_occupation <- c("machine learning", "data scientist", "data engineer", "data analyst")
+
+LCA_application <- LCA_application %>% 
+  mutate(occupation = case_when(grepl("machine learning", job_title, fixed = TRUE) ~ "machine learning",
+                                grepl("data scientist", job_title, fixed = TRUE) ~ "data scientist",
+                                grepl("data engineer", job_title, fixed = TRUE) ~ "data engineer",
+                                grepl("data analyst", job_title, fixed = TRUE) ~ "data analyst",
+                                TRUE ~ job_title))
+
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  count(occupation)
+```
+
+
+```{r}
+# Visualizing LCA applications amount of data science jobs.
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  group_by(occupation) %>% 
+  ggplot(aes(x = year, fill = factor(year))) +
+  geom_bar(stat="count", position = "dodge") +
+  geom_label(stat='count', aes(label=..count..), hjust = -0.1) +
+  scale_y_continuous(limits=c(0, 6000)) +
+  coord_flip() +
+  facet_wrap(~occupation) + 
+  labs(x = "Year",
+       y = "Number of Applications",
+       fill = "Year")
+```
+This bar chart depicts the number of LCA applications. of data science-related 
+professions over time. With each passing year, the need for data science-related 
+occupations grows. Particularly, the data engineer occupation growth fast. 
+In addition, to assist viewers comprehend the graphic, I indicate the specific 
+number of LCA applications. Despite the fact that data science is becoming more 
+popular, it still still accounts for a small portion of demand in the US market, 
+which totals 300 million applications.
+
+
+```{r}
+# Visualizing the prevailing wage rage of data science job
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  group_by(occupation, year) %>% 
+  summarise(mean_wage = mean(prevailing_wage_year)) %>% 
+  ggplot(aes(x = year, y = mean_wage, color = occupation)) +
+  geom_line(size = 1) +
+  labs(x = "Year",
+       y = "Mean of Prevailing wage Rate",
+       fill = "Occupation")
+```
+```{r}
+# Visualizing the mean wage rage of data science job
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  group_by(occupation, year) %>% 
+  summarise(mean_wage = mean(wage_rate_from_year)) %>% 
+  ggplot(aes(x = year, y = mean_wage, color = occupation)) +
+  geom_line(size = 1) +
+  labs(x = "Year",
+       y = "Mean of Minimum paid wage Rate",
+       fill = "Occupation")
+```
+
+The two graphs above show pay trends for data science positions. Except for the 
+data engineer occupation, which has seen a significant increase in wage rates in 2018, 
+other data science jobs have seen just minor changes. They raise the paid minimum 
+wage rate for those who seek to recruit overseas labor. The data scientist occupation 
+has the quickest income increase and is also one of the most in-demand positions 
+in the data science field.We use different color lines to represent different jobs 
+and alter the line width to assist users comprehend the graphic.
+
