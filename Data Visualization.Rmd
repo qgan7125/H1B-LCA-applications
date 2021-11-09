@@ -16,7 +16,9 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```{r}
 # load libraries
 library(tidyverse)
+library(knitr)
 ```
+
 ```{r}
 # load data in
 LCA_application <- read_csv("Data/LCA_cleaned.csv")
@@ -36,8 +38,8 @@ LCA_application %>%
   add_count(employer_name) %>% 
   arrange(desc(n)) %>% 
   unique() %>% 
-  top_n(10) %>% 
-  print(n = 10) -> top_10_company
+  top_n(10) -> top_10_company
+  
 ```
 
 ```{r}
@@ -48,7 +50,7 @@ LCA_application %>%
   group_by(year) %>% 
   add_count(employer_name) %>% 
   arrange(year, desc(n)) %>% 
-  unique() -> company_application_number
+  unique() -> company_application_number 
 ```
 
 Visualize the top 5 companies across years
@@ -87,7 +89,8 @@ The paid wage rate is the actually wage paied to the foreign employee.
 
 ```{r}
 # count case_status
-LCA_application %>% count(case_status)
+LCA_application %>% count(case_status) %>% 
+  kable()
 ```
 
 In this data set, there are over 300 million records but only 1% applications failed,
@@ -197,7 +200,8 @@ LCA_application <- LCA_application %>%
 
 LCA_application %>% 
   filter(occupation %in% ds_occupation) %>% 
-  count(occupation)
+  count(occupation) %>% 
+  kable()
 ```
 
 
