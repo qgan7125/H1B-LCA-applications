@@ -1,0 +1,173 @@
+---
+title: "Data modeling"
+author: "Quan Gan, Yuxuan chen"
+date: "11/16/2021"
+output: html_document
+---
+
+# Data Modeling
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+# load libraries
+library(tidyverse)
+library(knitr)
+library(effects)
+library(ggthemes)
+```
+
+```{r}
+# load data in
+LCA_application <- read_csv("Data/LCA_cleaned.csv")
+```
+
+In this data set, there are over 300 million records but only 1% applications failed,
+which is extremely unbalanced. In order to ensure the fairness, we sample approval 
+and denied cases in the same size and use the new subset of LCA applications to train 
+the models.
+
+```{r}
+
+# set seed
+set.seed(1)
+
+# sample records from dataset
+certified <- LCA_application %>% 
+  filter(case_status == "certified") %>% 
+  sample_n(10000)
+
+denied <- LCA_application %>% 
+  filter(case_status == "denied") %>% 
+  sample_n(10000)
+
+
+LCA_sample <- rbind(certified, denied)
+
+# The wage_rate_from_year is the minimum paid wage rate and wage_rate_to_year is the
+# maximum paid wage rate. So, we need to calculate the mean wage rate.
+LCA_sample <- LCA_sample %>% 
+  mutate(mean_wage_rate_year = ifelse(wage_rate_to_year == 0, 
+                                      wage_rate_from_year,
+                                      (wage_rate_from_year + wage_rate_to_year)/2))
+
+LCA_sample <- LCA_sample %>% 
+  mutate(difference_prevailing_wage = mean_wage_rate_year - prevailing_wage_year)
+
+```
+
+
+## Model 1
+
+> Question: What is the relationship of year and wage_rate_from_year aroess case status?
+
+```{r}
+# create model
+model_wage_rate_from_year <- lm( wage_rate_from_year ~ year, data = LCA_sample)
+
+summary(model_wage_rate_from_year)
+```
+Visualizing the model predictor
+
+
+```{r}
+LCA_sample %>% 
+  ggplot(aes(x = year,
+             y = wage_rate_from_year,
+             color = case_status)) +
+  geom_jitter(alpha = 0.5) +
+  geom_smooth(formula = y ~ x, method = "lm") +
+  ylim(0, 300000) +
+  scale_color_colorblind() 
+```
+The result shows statistically signification between wage_rate_from_year (the actually 
+minimum paid wage) and year. The year has a positive effect on the wage_rate_from_year, 
+with a increase of 469055 points on wage_rate_from_year for every point increase on the year. 
+The result also shows the US companies need to spend more money on recruiting foreign 
+worker and applying for LCA.
+
+## Model 2
+
+> Question: What is the relationship between wage_rate_from_year of denied case_status and state?
+
+```{r}
+
+denied_case <- LCA_application %>% 
+  filter(case_status == "denied")
+
+model_prevailing_wage_state <- lm(wage_rate_from_year ~ worksite_state, data = denied_case)
+
+summary(model_prevailing_wage_state)
+```
+The result (p > 0.05) shows we could not reject null hypothesis, so the denied case wage_rate_from_year have no relationship with state.
+
+## Model 3
+
+> Effect of worksite_state, prevailing_wage_year on wage_rate_from_year of data science related occupations
+
+```{r}
+# filter original data set and select data science related jobs.
+ds_occupation <- c("machine learning", "data scientist", "data engineer", "data analyst")
+
+LCA_application <- LCA_application %>% 
+  mutate(occupation = case_when(grepl("machine learning", job_title, fixed = TRUE) ~ "machine learning",
+                                grepl("data scientist", job_title, fixed = TRUE) ~ "data scientist",
+                                grepl("data engineer", job_title, fixed = TRUE) ~ "data engineer",
+                                grepl("data analyst", job_title, fixed = TRUE) ~ "data analyst",
+                                TRUE ~ job_title))
+
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  count(occupation) %>% 
+  kable()
+```
+
+```{r}
+LCA_ds <- LCA_application %>% 
+  filter(occupation %in% ds_occupation)
+
+model_ds <- lm(wage_rate_from_year ~ prevailing_wage_year + worksite_state + occupation, data = LCA_ds)
+
+summary(model_ds)
+```
+The result shows only prevailing_wage_year and date scientist occupation has effects on wage_rate_from_year of data science related occupations
+
+```{r}
+model_ds <- lm(wage_rate_from_year ~ prevailing_wage_year + occupation, data = LCA_ds)
+
+summary(model_ds)
+```
+The output shows there is a positive relationship between prevailing_wage_year and wage_rate_from_year of data science related occupations. Data scientist occupation also has a positive relationship.
+
+Let's visualize.
+
+```{r}
+LCA_ds %>% 
+  ggplot(aes(x = prevailing_wage_year,
+             y = wage_rate_from_year,
+             color = occupation)) +
+  geom_jitter(alpha = .5) +
+  facet_wrap(~occupation, scales = "free") +
+  geom_smooth(method = "lm") +
+  labs(x = "Prevailing Wage Rate",
+       y = "Minimum wage rate")
+```
+```{r}
+effect("occupation", model_ds) %>%
+  data.frame() %>%
+  ggplot(aes(x = reorder(occupation, fit),
+             y = fit,
+             ymin = lower,
+             ymax = upper,
+             label = format(fit, digits = 2))) +
+  geom_errorbar(width = .4) +
+  geom_label() +
+  labs(x = "Data Science Occupation",
+       y = "Minimum Wage Rate")
+```
+
+
+
+
