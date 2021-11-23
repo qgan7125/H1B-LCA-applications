@@ -371,3 +371,4 @@ LCA_cleaned <- LCA_total %>%
          submited_month,
          submited_week)
 
+write.csv(LCA_cleaned, "Data/LCA_cleaned.csv")
