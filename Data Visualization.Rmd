@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 # load libraries
 library(tidyverse)
 library(knitr)
+library(ggthemes)
 ```
 
 ```{r}
@@ -64,7 +65,8 @@ company_application_number %>%
   geom_col(position = "dodge") + 
   facet_wrap(~employer_name, ncol = 3) +
   coord_flip() +
-  labs(y = "Number of LCA applications")
+  labs(y = "Number of LCA applications") +
+  scale_color_colorblind() 
 
 ```
 
@@ -138,7 +140,10 @@ LCA_sample %>%
   coord_cartesian(ylim=c(0,150000)) +
   labs(x = "Year",
        y = "Prevailing wage rate unit year",
-       fill = "Case Status")
+       fill = "Case Status") +
+  scale_color_colorblind() 
+
+  
 
 ```
 
@@ -214,11 +219,12 @@ LCA_application %>%
   geom_bar(stat="count", position = "dodge") +
   geom_label(stat='count', aes(label=..count..), hjust = -0.1) +
   scale_y_continuous(limits=c(0, 6000)) +
+  scale_color_colorblind() +
   coord_flip() +
   facet_wrap(~occupation) + 
   labs(x = "Year",
        y = "Number of Applications",
-       fill = "Year")
+       fill = "Year") 
 ```
 This bar chart depicts the number of LCA applications. of data science-related 
 professions over time. With each passing year, the need for data science-related 
