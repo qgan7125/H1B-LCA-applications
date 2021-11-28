@@ -1,0 +1,456 @@
+---
+title: "Final Project"
+author: "Quan Gan, Yuxuan chen"
+date: "11/27/2021"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(knitr)
+library(ggthemes)
+library(effects)
+library(grid)
+library(gridExtra)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width=10, fig.height=6)
+```
+# H-1B LCA petitions analysis from 2016 to 2020
+
+## Introduction
+Non-US nationals who wish to work in the United States must first get valid visas.
+The H-1B visa is a non-immigrant visa that permits a foreign citizen to work in the United
+States in a specialty vocation. This is practically the only approach that international students
+could settle in the United States. The US employers will fill petitions on behalf of
+the high skilled foreign employees to apply for the H-1B visas. LCA refers to Labor Condition
+Application, which is the first process of H-1B applications. LCA is essential
+for ensuring that you are paid properly as a foreign worker and that you are not exploited
+by US companies. H-1B applications are approved by draw but LCA are approved primarily
+by Wage that must be higher than the same level US employees’ minimum wage.
+In this project, I’m investigating at what factors impact the approval of an H-1B LCA
+application. we wish US companies could reference this research to recruit high skills
+workers and help them gain H-1B and also the foreign job seekers or international students
+could follow this research to find qualified US companies. The larger questions the
+project addresses are how vocations’ needs evolve in the US market. The wage change
+and number of applications reflect the market’s needs in the United States. The study
+will reveal what factors contribute to the denial of LCA applications and which jobs are
+most likely to be approved.The significance of this research is that it may represent the
+challenges of acquiring a work permit in the United States as well as trends in the US
+market. The project’s societal problems are that it will affect international students’ or
+foreign job seekers’ decisions about whether or not to study or settle in the United States. 
+Furthermore, the project will affect the US companies about whether or not to hire foreign
+employees. We’ll emphasize on data science-related professions like data scientist and
+data analyst after analyzing the total LCA applications.
+
+### Research Question
+> What factors impact the approval of LCA applications?
+
+> What companies have high expectations of international workers?
+
+> What are the changes of data science jobs; demands in the US market?
+
+## Data 
+The data is extracted from non-immigrant and immigrant application tables within
+the office of foreign labor certification’s case management systems. The U.S. DEPARTMENT
+OF LABOR publishes the disclosure data on their website. https://www.dol.gov/agencies/eta/foreign-labor/performance. 
+The data set is LCA Programs (H-1B, H-1B1, E-3). It contains LCA applications xlsx
+files from 2016 fiscal year to 2020 fiscal year. For the 2020 fiscal year, there are four xlsx
+files so in the later data wrangling, We need to merge them into one table. Every year, the
+number of variables grows. There are 41 variables in 2016, but there are 95 variables in
+2020. Furthermore, the names of the variables differ. As a result, We’ll use variables that
+are present in all fiscal years and have the same meaning.
+
+```{r}
+# read data in
+LCA_application <- read_csv("Data/LCA_cleaned.csv")
+```
+
+
+### Curation Rationale
+The purpose of this data is to investigate the factors that influence the approval of H1B LCA applications, 
+the companies that anticipate to recruit more foreign workers, and
+the trajectory of data science positions in the US market between 2016 and 2020. Each
+original data set contains unique records identifiable by the appropriate OFLC case
+number based on the most recent date a case determination judgment was made for the
+fiscal year. Furthermore, the data set is massive and imbalanced. The cleaned data set
+contains 3004616 records, yet only 1% of applications were declined. The H1-B type is
+the only one included in the LCA applications, and wage rates are uniform in year unit.
+20% of the entries in the original data set had no full time position values. In order to deal
+with those missing values, we analyzed 75% percentile value for part-time positions and
+select 87000 as the cut-off. The cleaned columns' names display below.
+
+```{r}
+colnames(LCA_application) %>% 
+  kable()
+```
+
+
+### Participant Demographic
+Because of policies, the public disclosure data set does not contain personally identifiable
+information. Therefore, there are no direct demographic information regarding age, gender,
+or race and ethnicity information but the data set contains the potential annual wage
+and employer name and work site information. We can guarantee that all of the participants are international employees from other nations other than the United States and there
+are certain companies in the United States who are interested in hiring them.
+
+### Annotator Demographic
+Based on petition information, the data is labeled as certified and denied.. There is no direct demographic characteristics of the annotators but the official policies and regulations
+provide guidance about the approval. The U.S. Citizenship and Immigration Services
+website (https://www.uscis.gov/working-in-the-united-states/h-1b-specialty-occupations.) 
+also demonstrate the LCA requirements.
+
+1. The employer/agent will pay the H-1B worker a wage which is no less than the
+wage paid to similarly qualified workers or, if greater, the prevailing wage for the
+position in the geographic area in which the H-1B worker will be working.
+
+2. The employer/agent will provide working conditions that will not adversely affect
+other similarly employed workers.
+
+3. At the time of the labor condition application there is no strike or lockout at the
+place of employment.
+
+4. Notice of the filing of the labor condition application with the DOL has been given to
+the union bargaining representative or has been posted at the place of employment.
+
+### Data Collection Situation
+Records from the fiscal years 2016 through 2020 are included in the data set. The fiscal
+year runs from October 1 of the previous year to September 30 of the current year. For
+example, the fiscal year 2020 contains records from October 1, 2019 through September 30, 2020. 
+The data is extracted from nonimmigrant and immigrant application tables
+within the Office of Foreign Labor Certification’s case management systems. The data is
+annotated by the faculties in Office of Foreign Labor certification of Department of Labor.
+
+## Data Visualization
+
+### Visualization One
+
+> Question: What companies have high expectations of international workers arcoss years?
+
+```{r}
+# Find the top 10 companies that have most LCA applications.
+top_10_company <- LCA_application %>% 
+  select(employer_name) %>% 
+  add_count(employer_name) %>% 
+  arrange(desc(n)) %>% 
+  unique() %>% 
+  top_n(10)
+
+# Count the LCA applications of top 10 companies across years
+company_application_number <- LCA_application %>% 
+  filter(employer_name %in% top_10_company$employer_name) %>% 
+  select(employer_name, year) %>% 
+  group_by(year) %>% 
+  add_count(employer_name) %>% 
+  arrange(year, desc(n)) %>% 
+  unique() 
+
+#Visualizing
+company_application_number %>% 
+  group_by(employer_name, year) %>% 
+  ggplot(aes(x = year,
+             y = n,
+             fill = year)) +
+  geom_col(position = "dodge") + 
+  facet_wrap(~employer_name, ncol = 3) +
+  coord_flip() +
+  labs(y = "Number of LCA applications") +
+  scale_color_colorblind() 
+  
+```
+
+This plot shows the top 10 companies in total that apply for LCA applications from 2016 to 2020.
+Each subplot shows their applications trends. We could know for Google LLC and cognizant technology solutions us corp,
+they don't have LCA applications in 2016 and 2017. Half of top 10 companies increase their
+LCA applications. In addition, I choose the top 10 companies that have most LCA 
+applications in total rather than choosing each year top 10 companies because some 
+companies might only desire foreign workers in a specific year and analyzing overall top 10 
+companies could illustrate the recruiting trends. From this result, we might be surprised that 
+the famous big IT companies like Amazon, Google, Microsoft are not the top demand on foreign workers. 
+In addition, we want to highlight the institutions. Some companies changed their name over years like 
+Amazon but the USCIS would no update the new name to the old records.
+
+### Visualization Two
+
+> Question: Would the prevailing wage rate and paid wage rate influence the approval of LCA application?
+
+In LCA, the prevailing wage is defined as "the average wage paid to similarly employed
+workers in the requested occupation in the area of intended employment" from 
+https://www.usavisanow.com/h-1b-visa/h1b-visa-resources/prevailing-wage/.
+
+The paid wage rate is the actually wage paid to the foreign employee. 
+
+
+```{r}
+# count case_status
+LCA_application %>% count(case_status) %>% 
+  kable()
+```
+
+In this data set, there are over 300 million records but only 1% applications failed,
+which is extremely unbalanced. In order to explore the correlation among prevailing 
+wage rate, paid wage rate, and the approval of LCA application, we decide to sample
+same amount record from data set.
+
+```{r}
+
+# set seed
+set.seed(1)
+
+# sample records from dataset
+certified <- LCA_application %>% 
+  filter(case_status == "certified") %>% 
+  sample_n(10000)
+
+denied <- LCA_application %>% 
+  filter(case_status == "denied") %>% 
+  sample_n(10000)
+
+
+LCA_sample <- rbind(certified, denied)
+
+# The wage_rate_from_year is the minimum paid wage rate and wage_rate_to_year is the
+# maximum paid wage rate. So, we need to calculate the mean wage rate.
+LCA_sample <- LCA_sample %>% 
+  mutate(mean_wage_rate_year = ifelse(wage_rate_to_year == 0, 
+                                      wage_rate_from_year,
+                                      (wage_rate_from_year + wage_rate_to_year)/2))
+
+LCA_sample <- LCA_sample %>% 
+  mutate(difference_prevailing_wage = mean_wage_rate_year - prevailing_wage_year)
+
+```
+
+```{r}
+LCA_sample %>% 
+  group_by(case_status) %>% 
+  ggplot(aes(x = factor(year),
+             y = prevailing_wage_year,
+             fill = case_status)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(0,150000)) +
+  labs(x = "Year",
+       y = "Prevailing wage rate unit year",
+       fill = "Case Status") +
+  scale_color_colorblind() -> prevailing_plot_1
+
+LCA_sample %>% 
+  group_by(case_status) %>% 
+  ggplot(aes(x = factor(year),
+             y = mean_wage_rate_year,
+             fill = case_status)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(0,150000))+
+  labs(x = "Year",
+       y = "Paid wage rate unit year",
+       fill = "Case Status") -> mean_wage_plot_1
+
+LCA_sample %>% 
+  group_by(case_status) %>% 
+  ggplot(aes(x = factor(year),
+             y = difference_prevailing_wage,
+             fill = case_status)) +
+  geom_boxplot() +
+  coord_cartesian(ylim=c(-10000,25000))+
+  labs(x = "Year",
+       y = "Difference of prevailing wage rate and paid wage rate",
+       fill = "Case Status") -> different_prevailing_plot_1
+
+grid.arrange(prevailing_plot_1, mean_wage_plot_1, different_prevailing_plot_1, ncol = 2)
+```
+
+The means of prevailing wage rate and paid wage rate of refused LCA applications 
+are lower than the means of certified LCA applications, as seen in the first two box plots. 
+The mean gap between paid and prevailing pay rates is greater than the mean difference 
+between paid and prevailing wage rates.
+The third box plots shows that the applicants receive the denied results because 
+the employers don't pay enough wage rate comparing to the prevailing wage rate.
+In addition, some paid wage rates of denied applications are less than the 
+prevailing wage rate but certified applications always provide wage rate larger 
+than prevailing wage. In the data, there are some extreme high wage rates, which 
+are noise. In order to help the users understand the visualization better, I change 
+the y-axis so the audiences could focus on the mean values.
+
+### Visualization Three
+
+> Question: What is the trends of data science related jobs?
+
+In this question, we will analyze four popular data science related jobs, machine learning,
+data scientist, data engineer, and data analyst. How would 
+their demand change? How would their wage rate change?
+
+```{r}
+# filter original data set and select data science related jobs.
+ds_occupation <- c("machine learning", "data scientist", "data engineer", "data analyst")
+
+LCA_application <- LCA_application %>% 
+  mutate(occupation = case_when(grepl("machine learning", job_title, fixed = TRUE) ~ "machine learning",
+                                grepl("data scientist", job_title, fixed = TRUE) ~ "data scientist",
+                                grepl("data engineer", job_title, fixed = TRUE) ~ "data engineer",
+                                grepl("data analyst", job_title, fixed = TRUE) ~ "data analyst",
+                                TRUE ~ job_title))
+
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  count(occupation) %>% 
+  kable()
+```
+```{r}
+# Visualizing LCA applications amount of data science jobs.
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  group_by(occupation) %>% 
+  ggplot(aes(x = year, fill = factor(year))) +
+  geom_bar(stat="count", position = "dodge") +
+  geom_label(stat='count', aes(label=..count..), hjust = -0.1) +
+  scale_y_continuous(limits=c(0, 6000)) +
+  scale_color_colorblind() +
+  coord_flip() +
+  facet_wrap(~occupation) + 
+  labs(x = "Year",
+       y = "Number of Applications",
+       fill = "Year") 
+```
+This bar chart depicts the number of LCA applications. of data science-related 
+professions over time. With each passing year, the need for data science-related 
+occupations grows. Particularly, the data engineer occupation growth fast. 
+In addition, to assist viewers comprehend the graphic, I indicate the specific 
+number of LCA applications. Despite the fact that data science is becoming more 
+popular, it still still accounts for a small portion of demand in the US market, 
+which totals 300 million applications.
+
+```{r}
+# Visualizing the prevailing wage rage of data science job
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  group_by(occupation, year) %>% 
+  summarise(mean_wage = mean(prevailing_wage_year)) %>% 
+  ggplot(aes(x = year, y = mean_wage, color = occupation)) +
+  geom_line(size = 1) +
+  labs(x = "Year",
+       y = "Mean of Prevailing wage Rate",
+       fill = "Occupation") -> mean_prevailing_plot
+
+# Visualizing the mean wage rage of data science job
+LCA_application %>% 
+  filter(occupation %in% ds_occupation) %>% 
+  group_by(occupation, year) %>% 
+  summarise(mean_wage = mean(wage_rate_from_year)) %>% 
+  ggplot(aes(x = year, y = mean_wage, color = occupation)) +
+  geom_line(size = 1) +
+  labs(x = "Year",
+       y = "Mean of Minimum paid wage Rate",
+      fill = "Occupation") -> mean_minimum_paid_plot
+
+grid.arrange(mean_prevailing_plot, mean_minimum_paid_plot, ncol = 1)
+```
+
+The two graphs above show pay trends for data science positions. Except for the 
+data engineer occupation, which has seen a significant increase in wage rates in 2018, 
+other data science jobs have seen just minor changes. They raise the paid minimum 
+wage rate for those who seek to recruit overseas labor. The data scientist occupation 
+has the quickest income increase and is also one of the most in-demand positions 
+in the data science field.We use different color lines to represent different jobs 
+and alter the line width to assist users comprehend the graphic.
+
+## Data Modeling
+
+### Model 1
+
+> Question: What is the relationship of year and wage_rate_from_year aroess case status?
+
+```{r}
+# create model
+model_wage_rate_from_year <- lm( wage_rate_from_year ~ year, data = LCA_sample)
+
+summary(model_wage_rate_from_year)
+```
+
+Visualizing the model predictor
+
+
+```{r}
+LCA_sample %>% 
+  ggplot(aes(x = year,
+             y = wage_rate_from_year,
+             color = case_status)) +
+  geom_jitter(alpha = 0.5) +
+  geom_smooth(formula = y ~ x, method = "lm") +
+  ylim(0, 300000) +
+  scale_color_colorblind() 
+```
+
+The result shows statistically signification between wage_rate_from_year (the actually 
+minimum paid wage) and year. The year has a positive effect on the wage_rate_from_year, 
+with a increase of 469055 points on wage_rate_from_year for every point increase on the year. 
+The result also shows the US companies need to spend more money on recruiting foreign 
+worker and applying for LCA.
+
+### Model 2
+
+> Question: What is the relationship between wage_rate_from_year of denied case_status and state?
+
+```{r}
+
+denied_case <- LCA_application %>% 
+  filter(case_status == "denied")
+
+model_prevailing_wage_state <- lm(wage_rate_from_year ~ worksite_state, data = denied_case)
+
+summary(model_prevailing_wage_state)
+```
+
+The result (p > 0.05) shows we could not reject null hypothesis, so the denied case wage_rate_from_year have no relationship with state.
+
+### Model 3
+
+> Effect of worksite_state, prevailing_wage_year on wage_rate_from_year of data science related occupations
+
+```{r}
+LCA_ds <- LCA_application %>% 
+  filter(occupation %in% ds_occupation)
+
+model_ds <- lm(wage_rate_from_year ~ prevailing_wage_year + worksite_state + occupation, data = LCA_ds)
+
+summary(model_ds)
+```
+The result shows only prevailing_wage_year and date scientist occupation has effects on wage_rate_from_year of data science related occupations
+
+```{r}
+model_ds <- lm(wage_rate_from_year ~ prevailing_wage_year + occupation, data = LCA_ds)
+
+summary(model_ds)
+```
+The output shows there is a positive relationship between prevailing_wage_year and wage_rate_from_year of data science related occupations. Data scientist occupation also has a positive relationship.
+
+Let's visualize.
+```{r}
+LCA_ds %>% 
+  ggplot(aes(x = prevailing_wage_year,
+             y = wage_rate_from_year,
+             color = occupation)) +
+  geom_jitter(alpha = .5) +
+  facet_wrap(~occupation, scales = "free") +
+  geom_smooth(method = "lm") +
+  labs(x = "Prevailing Wage Rate",
+       y = "Minimum wage rate")
+```
+```{r}
+effect("occupation", model_ds) %>%
+  data.frame() %>%
+  ggplot(aes(x = reorder(occupation, fit),
+             y = fit,
+             ymin = lower,
+             ymax = upper,
+             label = format(fit, digits = 2))) +
+  geom_errorbar(width = .4) +
+  geom_label() +
+  labs(x = "Data Science Occupation",
+       y = "Minimum Wage Rate")
+```
+
+As we can see above, the data scientist and machine learning positions' minimum paid wages keep increasing as the 
+increment of the prevailing wage but the data analyst and data engineer don't. In addition, the machine learning 
+position has the most variances. The possible reasons for this results is the USCIS doesn't consider the position levels 
+as a factor in the LCA applications. Even for the same position title, the wage rates are different based on the 
+positions levels. If we sum the data science related job amount, we would notice they are just a tiny port of LCA applications, 50k out of 3M. In another words, the US companies are not likely to hire foreign workers for Data science positions. 
