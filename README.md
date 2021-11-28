@@ -20,3 +20,4 @@ In the event that the massive data cannot be processed, we also provide html fil
 - [LCA_Data_Wrangling.R](LCA_Data_Wrangling.R) is used to clean data and generate the cleaned data file
 - Data Visualization.Rmd is used to plot visualization 
 - Data modeling.Rmd is used to do modeling
+- Final_report.Rmd contains all previous analysis and report the final analysis.
