@@ -5,7 +5,7 @@ Analyzing H1B LCA applications.
 ```
 1. What factors impact the approval of LCA applications?
 2. What companies have high expectations of international workers?
-3. What are the change of data science jobs's demands in the US market?
+3. What is the change in data science job demands in the US market?
 ```
 
 ## Data
